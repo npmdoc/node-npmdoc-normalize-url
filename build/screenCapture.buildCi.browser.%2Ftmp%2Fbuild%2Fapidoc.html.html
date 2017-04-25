@@ -1,0 +1,220 @@
+<html><head></head><body><div class="apidocDiv">
+<style>
+/*csslint
+*/
+.apidocDiv {
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.apidocDiv a[href] {
+    color: #33f;
+    font-weight: bold;
+    text-decoration: none;
+}
+.apidocDiv a[href]:hover {
+    text-decoration: underline;
+}
+.apidocCodeCommentSpan {
+    background: #bbf;
+    color: #000;
+    display: block;
+}
+.apidocCodeKeywordSpan {
+    color: #d00;
+    font-weight: bold;
+}
+.apidocCodePre {
+    background: #eef;
+    border: 1px solid;
+    color: #777;
+    padding: 5px;
+    white-space: pre-wrap;
+}
+.apidocFooterDiv {
+    margin-top: 20px;
+    text-align: center;
+}
+.apidocModuleLi {
+    margin-top: 10px;
+}
+.apidocSectionDiv {
+    border-top: 1px solid;
+    margin-top: 20px;
+}
+.apidocSignatureSpan {
+    color: #777;
+    font-weight: bold;
+}
+</style>
+<h1>api documentation for
+    <a href="https://github.com/sindresorhus/normalize-url#readme">normalize-url (v1.9.1)</a>
+</h1>
+<h4>Normalize a URL</h4>
+<div class="apidocSectionDiv"><a href="#apidoc.tableOfContents" id="apidoc.tableOfContents"><h1>table of contents</h1></a><ol>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.normalize-url">module normalize-url</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.normalize-url.normalize-url">
+            function <span class="apidocSignatureSpan"></span>normalize-url
+            <span class="apidocSignatureSpan">(str, opts)</span>
+            </a>
+
+        </li>
+
+    </ol></li>
+
+</ol></div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.normalize-url" id="apidoc.module.normalize-url">module normalize-url</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.normalize-url.normalize-url" id="apidoc.element.normalize-url.normalize-url">
+        function <span class="apidocSignatureSpan"></span>normalize-url
+        <span class="apidocSignatureSpan">(str, opts)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">normalize-url = function (str, opts) {
+	opts = objectAssign({
+		normalizeProtocol: true,
+		normalizeHttps: false,
+		stripFragment: true,
+		stripWWW: true,
+		removeQueryParameters: [/^utm_\w+/i],
+		removeTrailingSlash: true,
+		removeDirectoryIndex: false
+	}, opts);
+
+	if (typeof str !== 'string') {
+		throw new TypeError('Expected a string');
+	}
+
+	var hasRelativeProtocol = str.indexOf('//') === 0;
+
+	// prepend protocol
+	str = prependHttp(str.trim()).replace(/^\/\//, 'http://');
+
+	var urlObj = url.parse(str);
+
+	if (opts.normalizeHttps &amp;&amp; urlObj.protocol === 'https:') {
+		urlObj.protocol = 'http:';
+	}
+
+	if (!urlObj.hostname &amp;&amp; !urlObj.pathname) {
+		throw new Error('Invalid URL');
+	}
+
+	// prevent these from being used by `url.format`
+	delete urlObj.host;
+	delete urlObj.query;
+
+	// remove fragment
+	if (opts.stripFragment) {
+		delete urlObj.hash;
+	}
+
+	// remove default port
+	var port = DEFAULT_PORTS[urlObj.protocol];
+	if (Number(urlObj.port) === port) {
+		delete urlObj.port;
+	}
+
+	// remove duplicate slashes
+	if (urlObj.pathname) {
+		urlObj.pathname = urlObj.pathname.replace(/\/{2,}/g, '/');
+	}
+
+	// decode URI octets
+	if (urlObj.pathname) {
+		urlObj.pathname = decodeURI(urlObj.pathname);
+	}
+
+	// remove directory index
+	if (opts.removeDirectoryIndex === true) {
+		opts.removeDirectoryIndex = [/^index\.[a-z]+$/];
+	}
+
+	if (Array.isArray(opts.removeDirectoryIndex) &amp;&amp; opts.removeDirectoryIndex.length) {
+		var pathComponents = urlObj.pathname.split('/');
+		var lastComponent = pathComponents[pathComponents.length - 1];
+
+		if (testParameter(lastComponent, opts.removeDirectoryIndex)) {
+			pathComponents = pathComponents.slice(0, pathComponents.length - 1);
+			urlObj.pathname = pathComponents.slice(1).join('/') + '/';
+		}
+	}
+
+	// resolve relative paths, but only for slashed protocols
+	if (slashedProtocol[urlObj.protocol]) {
+		var domain = urlObj.protocol + '//' + urlObj.hostname;
+		var relative = url.resolve(domain, urlObj.pathname);
+		urlObj.pathname = relative.replace(domain, '');
+	}
+
+	if (urlObj.hostname) {
+		// IDN to Unicode
+		urlObj.hostname = punycode.toUnicode(urlObj.hostname).toLowerCase();
+
+		// remove trailing dot
+		urlObj.hostname = urlObj.hostname.replace(/\.$/, '');
+
+		// remove `www.`
+		if (opts.stripWWW) {
+			urlObj.hostname = urlObj.hostname.replace(/^www\./, '');
+		}
+	}
+
+	// remove URL with empty query string
+	if (urlObj.search === '?') {
+		delete urlObj.search;
+	}
+
+	var queryParameters = queryString.parse(urlObj.search);
+
+	// remove query unwanted parameters
+	if (Array.isArray(opts.removeQueryParameters)) {
+		for (var key in queryParameters) {
+			if (testParameter(key, opts.removeQueryParameters)) {
+				delete queryParameters[key];
+			}
+		}
+	}
+
+	// sort query parameters
+	urlObj.search = queryString.stringify(sortKeys(queryParameters));
+
+	// decode query parameters
+	urlObj.search = decodeURIComponent(urlObj.search);
+
+	// take advantage of many of the Node `url` normalizations
+	str = url.format(urlObj);
+
+	// remove ending `/`
+	if (opts.removeTrailingSlash || urlObj.pathname === '/') {
+		str = str.replace(/\/$/, '');
+	}
+
+	// restore relative protocol, if applicable
+	if (hasRelativeProtocol &amp;&amp; !opts.normalizeProtocol) {
+		str = str.replace(/^http:\/\//, '//');
+	}
+
+	return str;
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
+
+</div>
+
+<div class="apidocFooterDiv">
+    [ this document was created with
+    <a href="https://github.com/kaizhu256/node-utility2" target="_blank">utility2</a>
+    ]
+</div>
+</div>
+</body></html>
